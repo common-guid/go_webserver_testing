@@ -1,0 +1,167 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+	"time"
+)
+
+func main() {
+	/*
+			watcher, err := fsnotify.NewWatcher()
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer watcher.Close()
+
+			done := make(chan bool)
+			go func() {
+				for {
+					select {
+					case event, ok := <-watcher.Events:
+						if !ok {
+							return
+						}
+						log.Println("event:", event)
+						if event.Op&fsnotify.Write == fsnotify.Write {
+							//  log.Println("modified file:", event.Name)
+
+							// I think prom is blocking the loop from continuing
+							if fileLen() > 1 {
+								iftopParse.Parse()
+								//delete file - put somewhere
+								//os.Remove(fileLoc)
+								iftopParse.Prom()
+								fmt.Println("past prom")
+							}
+						}
+					case err, ok := <-watcher.Errors:
+						if !ok {
+							return
+						}
+						log.Println("error:", err)
+					}
+				}
+			}()
+
+			err = watcher.Add(fileLoc)
+			if err != nil {
+				log.Fatal(err)
+			}
+			<-done
+		}
+	*/
+	for t := 0; t < 5; t++ {
+
+		go serve()
+		time.Sleep(time.Second)
+		println("main ", t)
+	}
+
+}
+
+// option 1
+
+func serve() {
+	for i := 0; i < 5; i++ {
+
+		//srv := &http.Server{Addr: ":8080"}
+		http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
+			fmt.Fprintf(w, "Welcome to my website!")
+		})
+		fs := http.FileServer(http.Dir("static/"))
+
+		http.Handle("/static/", http.StripPrefix("/static/", fs))
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			println("closed")
+		}
+		//if err := srv.Shutdown(context.Background()); err != nil {
+		//	println("success shutdown")
+		//}}
+
+		http.ListenAndServe(":8080", nil)
+		time.Sleep(time.Second)
+		println("routine ", i)
+	}
+
+}
+
+//option 2
+
+func main() {
+	port := flag.String("p", "3000", "port to serve on")
+	directory := flag.String("d", ".", "the directory of static file to host")
+	flag.Parse()
+
+	http.Handle("/statics/", http.StripPrefix(strings.TrimRight("/statics/", "/"), http.FileServer(http.Dir(*directory))))
+
+	log.Printf("Serving %s on HTTP port: %s\n", *directory, *port)
+	log.Fatal(http.ListenAndServe(":"+*port, nil))
+}
+
+// option 3
+
+// FileSystem custom file system handler
+type FileSystem struct {
+	fs http.FileSystem
+}
+
+// Open opens file
+func (fs FileSystem) Open(path string) (http.File, error) {
+	f, err := fs.fs.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	s, err := f.Stat()
+	if s.IsDir() {
+		index := strings.TrimSuffix(path, "/") + "/index.html"
+		if _, err := fs.fs.Open(index); err != nil {
+			return nil, err
+		}
+	}
+
+	return f, nil
+}
+
+func main() {
+	port := flag.String("p", "3000", "port to serve on")
+	directory := flag.String("d", ".", "the directory of static file to host")
+	flag.Parse()
+
+	fileServer := http.FileServer(FileSystem{http.Dir(*directory)})
+	http.Handle("/statics/", http.StripPrefix(strings.TrimRight("/statics/", "/"), fileServer))
+
+	log.Printf("Serving %s on HTTP port: %s\n", *directory, *port)
+	log.Fatal(http.ListenAndServe(":"+*port, nil))
+}
+
+// consider this from https://quii.gitbook.io/learn-go-with-tests/go-fundamentals/concurrency
+package concurrency
+
+type WebsiteChecker func(string) bool
+type result struct {
+    string
+    bool
+}
+
+func CheckWebsites(wc WebsiteChecker, urls []string) map[string]bool {
+    results := make(map[string]bool)
+    resultChannel := make(chan result)
+
+    for _, url := range urls {
+        go func(u string) {
+            resultChannel <- result{u, wc(u)}
+        }(url)
+    }
+
+    for i := 0; i < len(urls); i++ {
+        r := <-resultChannel
+        results[r.string] = r.bool
+    }
+
+    return results
+}

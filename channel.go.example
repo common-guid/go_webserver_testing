@@ -1,0 +1,43 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"time"
+)
+
+// potentially can be used for nonblocking http server
+
+type Ball uint8
+
+func Play(playerName string, table chan Ball, serve bool) {
+	var receive, send chan Ball
+	if serve {
+		receive, send = nil, table
+	} else {
+		receive, send = table, nil
+	}
+	var lastValue Ball = 1
+	for {
+		select {
+		case send <- lastValue:
+		case value := <-receive:
+			fmt.Println(playerName, value)
+			value += lastValue
+			if value < lastValue { // overflow
+				os.Exit(0)
+			}
+			lastValue = value
+		}
+		// Switch on/off.
+		receive, send = send, receive
+		time.Sleep(time.Second * 10)
+	}
+}
+
+// create output A: 1, B: 2, A: 3, ...
+func mmain() {
+	table := make(chan Ball)
+	go Play("A:", table, false)
+	Play("B:", table, true)
+}
